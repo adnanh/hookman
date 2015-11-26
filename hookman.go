@@ -7,8 +7,9 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 
-	"github.com/adnanh/hookman/rule"
+	"github.com/adnanh/hookman/lexer"
 	"github.com/adnanh/webhook/hook"
 	"github.com/codegangsta/cli"
 )
@@ -79,12 +80,10 @@ func listAllHooks(c *cli.Context) {
 
 func editHook(c *cli.Context) {
 	loadHooksOrDie(c)
-	res, err := rule.ParseString(c.Args()[0])
-	if err != nil {
-		log.Fatalf("%+v, %+v", res, err)
-	}
-	output, _ := json.MarshalIndent(rule.NewFromParserResult(res), "", "  ")
-	fmt.Printf("%+s", string(output))
+
+	l := lexer.New(strings.Join(c.Args(), " "))
+	l.Lex()
+	fmt.Printf("%+v\n", l)
 }
 
 func saveToHooksFile() {
