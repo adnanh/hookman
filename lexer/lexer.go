@@ -62,7 +62,7 @@ type Lexer struct {
 	Input                string
 	Tokens               []Token
 	State                LexFn
-	Error                error
+	Error                []error
 	TokenStart           int
 	Position             int
 	OpenParenthesisCount int
@@ -72,13 +72,17 @@ func New(input string) *Lexer {
 	return &Lexer{Input: input, State: LexBegin}
 }
 
-func (lexer *Lexer) Lex() error {
+func (lexer *Lexer) Lex() []error {
 	for {
 		if lexer.State == nil {
 			break
 		}
 
 		lexer.State = (lexer.State)(lexer)
+	}
+
+	if lexer.OpenParenthesisCount > 0 {
+		lexer.Errorf(ErrorClosingParenthesisMissing)
 	}
 
 	return lexer.Error
@@ -168,7 +172,7 @@ func (lexer *Lexer) IsEOF() bool {
 }
 
 func (lexer *Lexer) Errorf(err string) LexFn {
-	lexer.Error = fmt.Errorf("%s at position: %d", err, lexer.Position)
+	lexer.Error = append(lexer.Error, fmt.Errorf("%s at position: %d", err, lexer.Position))
 	return nil
 }
 
@@ -308,11 +312,6 @@ func LexBegin(lexer *Lexer) LexFn {
 	if lexer.IsEOF() {
 		lexer.TokenStart = lexer.Position
 		lexer.Emit(TokenEOF)
-
-		if lexer.OpenParenthesisCount > 0 {
-			return lexer.Errorf(ErrorClosingParenthesisMissing)
-		}
-
 		return nil
 	}
 
