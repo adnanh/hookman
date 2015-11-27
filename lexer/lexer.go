@@ -25,38 +25,63 @@ const (
 )
 
 const (
-	ErrorClosingSingleQuotationMarkIsMissing = "Missing closing single quotation mark"
-	ErrorClosingDoubleQuotationMarkIsMissing = "Missing closing double quotation mark"
-	ErrorClosingParenthesisMissing           = "Missing closing parenthesis"
-	ErrorUnexpectedToken                     = "Unexpected token %c"
+	errorClosingSingleQuotationMarkIsMissing = "Missing closing single quotation mark"
+	errorClosingDoubleQuotationMarkIsMissing = "Missing closing double quotation mark"
+	errorClosingParenthesisMissing           = "Missing closing parenthesis"
+	errorUnexpectedToken                     = "Unexpected token %c"
 )
 
 // TokenType represents a type of recognized token
 type TokenType int
 
 const (
+	// TokenEOF is an End of File token
 	TokenEOF TokenType = iota
 
+	// TokenLeftParenthesis is a left parenthesis token
 	TokenLeftParenthesis
+
+	// TokenRightParenthesis is a right parenthesis token
 	TokenRightParenthesis
+
+	// TokenComma is a comma token
 	TokenComma
+
+	// TokenRegexEqual is a regex equal operator token
 	TokenRegexEqual
+
+	// TokenStringEqual is a string equal operator token
 	TokenStringEqual
+
+	// TokenNot is a negation logical operator token
 	TokenNot
+
+	// TokenAnd is an and logical operator token
 	TokenAnd
+
+	// TokenOr is a or logical operator token
 	TokenOr
+
+	// TokenSingleQuotedStringLiteral is a single quoted string literal token
 	TokenSingleQuotedStringLiteral
+
+	// TokenDoubleQuotedStringLiteral is a double quoted string literal token
 	TokenDoubleQuotedStringLiteral
+
+	// TokenSha1 is a sha1 function token
 	TokenSha1
 )
 
+// Token is a structure that contains type of recognized token and it's value if applicable
 type Token struct {
 	Type  TokenType
 	Value string
 }
 
+// LexFn is an interface that lexing functions have to implement
 type LexFn func(*Lexer) LexFn
 
+// Lexer is a structure that contains current state of the lexer
 type Lexer struct {
 	Input                string
 	Tokens               []Token
@@ -67,10 +92,12 @@ type Lexer struct {
 	OpenParenthesisCount int
 }
 
+// New returns a new lexer for the given input
 func New(input string) *Lexer {
 	return &Lexer{Input: input, State: LexBegin}
 }
 
+// Lex performs lexing
 func (lexer *Lexer) Lex() []error {
 	for {
 		if lexer.State == nil {
@@ -81,28 +108,43 @@ func (lexer *Lexer) Lex() []error {
 	}
 
 	if lexer.OpenParenthesisCount > 0 {
-		lexer.Errorf(ErrorClosingParenthesisMissing)
+		lexer.Errorf(errorClosingParenthesisMissing)
 	}
 
 	return lexer.Errors
 }
 
-func (lexer *Lexer) Emit(tokenType TokenType) {
-	lexer.Tokens = append(lexer.Tokens, Token{Type: tokenType, Value: lexer.Input[lexer.TokenStart:lexer.Position]})
+// IsEOF returns true if the lexer has reached the end of the input
+func (lexer *Lexer) IsEOF() bool {
+	return lexer.Position >= utf8.RuneCountInString(lexer.Input)
 }
 
-func (lexer *Lexer) RemainingInput() string {
-	return lexer.Input[lexer.Position:]
-}
-
+// Read returns current rune
 func (lexer *Lexer) Read() rune {
-	if lexer.Position++; lexer.Position >= utf8.RuneCountInString(lexer.Input) {
+	if lexer.Position++; lexer.IsEOF() {
 		return eof
 	}
 
 	return rune(lexer.Input[lexer.Position-1])
 }
 
+// Emit appends given token to the lexer tokens slice
+func (lexer *Lexer) Emit(tokenType TokenType) {
+	lexer.Tokens = append(lexer.Tokens, Token{Type: tokenType, Value: lexer.Input[lexer.TokenStart:lexer.Position]})
+}
+
+// Errorf appends error with the given error message to the list of lexer errors
+func (lexer *Lexer) Errorf(err string) LexFn {
+	lexer.Errors = append(lexer.Errors, fmt.Errorf("%s at position: %d", err, lexer.Position))
+	return nil
+}
+
+// RemainingInput returns a string of an unread remainder input string
+func (lexer *Lexer) RemainingInput() string {
+	return lexer.Input[lexer.Position:]
+}
+
+// EatWhitespaces skips all whitespaces
 func (lexer *Lexer) EatWhitespaces() rune {
 	var ch rune
 
@@ -122,6 +164,7 @@ func (lexer *Lexer) EatWhitespaces() rune {
 	return ch
 }
 
+// LexComma emits TokenComma
 func LexComma(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(comma)
@@ -136,6 +179,7 @@ func LexComma(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexLeftParenthesis emits TokenLeftParenthesis
 func LexLeftParenthesis(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(leftParenthesis)
@@ -145,12 +189,13 @@ func LexLeftParenthesis(lexer *Lexer) LexFn {
 	if lexer.IsEOF() {
 		lexer.TokenStart = lexer.Position
 		lexer.Emit(TokenEOF)
-		return lexer.Errorf(ErrorClosingParenthesisMissing)
+		return lexer.Errorf(errorClosingParenthesisMissing)
 	}
 
 	return LexBegin
 }
 
+// LexRightParenthesis emits TokenRightParenthesis
 func LexRightParenthesis(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(rightParenthesis)
@@ -166,15 +211,7 @@ func LexRightParenthesis(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
-func (lexer *Lexer) IsEOF() bool {
-	return lexer.Position >= utf8.RuneCountInString(lexer.Input)
-}
-
-func (lexer *Lexer) Errorf(err string) LexFn {
-	lexer.Errors = append(lexer.Errors, fmt.Errorf("%s at position: %d", err, lexer.Position))
-	return nil
-}
-
+// LexSingleQuotedString emits TokenSingleQuotedStringLiteral
 func LexSingleQuotedString(lexer *Lexer) LexFn {
 	lexer.Position += len(singleQuotationMark)
 	lexer.TokenStart = lexer.Position
@@ -182,7 +219,7 @@ func LexSingleQuotedString(lexer *Lexer) LexFn {
 		if lexer.IsEOF() {
 			lexer.TokenStart = lexer.Position
 			lexer.Emit(TokenEOF)
-			return lexer.Errorf(ErrorClosingSingleQuotationMarkIsMissing)
+			return lexer.Errorf(errorClosingSingleQuotationMarkIsMissing)
 		}
 
 		switch {
@@ -198,6 +235,7 @@ func LexSingleQuotedString(lexer *Lexer) LexFn {
 	}
 }
 
+// LexDoubleQuotedString emits TokenDoubleQuotedStringLiteral
 func LexDoubleQuotedString(lexer *Lexer) LexFn {
 	lexer.Position += len(doubleQuotationMark)
 	lexer.TokenStart = lexer.Position
@@ -205,7 +243,7 @@ func LexDoubleQuotedString(lexer *Lexer) LexFn {
 		if lexer.IsEOF() {
 			lexer.TokenStart = lexer.Position
 			lexer.Emit(TokenEOF)
-			return lexer.Errorf(ErrorClosingDoubleQuotationMarkIsMissing)
+			return lexer.Errorf(errorClosingDoubleQuotationMarkIsMissing)
 		}
 
 		switch {
@@ -221,6 +259,7 @@ func LexDoubleQuotedString(lexer *Lexer) LexFn {
 	}
 }
 
+// LexStringEqual emits TokenStringEqual
 func LexStringEqual(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(stringEqual)
@@ -235,6 +274,7 @@ func LexStringEqual(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexRegexEqual emits TokenRegexEqual
 func LexRegexEqual(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(regexEqual)
@@ -249,6 +289,7 @@ func LexRegexEqual(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexAnd emits TokenAnd
 func LexAnd(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(and)
@@ -263,6 +304,7 @@ func LexAnd(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexOr emits TokenOr
 func LexOr(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(or)
@@ -277,6 +319,7 @@ func LexOr(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexNot emits TokenNot
 func LexNot(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(not)
@@ -291,6 +334,7 @@ func LexNot(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexSha1 emits TokenSha1
 func LexSha1(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(sha1)
@@ -305,6 +349,7 @@ func LexSha1(lexer *Lexer) LexFn {
 	return LexBegin
 }
 
+// LexBegin skips all whitespaces and returns a function that can lex the remaining input
 func LexBegin(lexer *Lexer) LexFn {
 	lexer.EatWhitespaces()
 
@@ -327,19 +372,19 @@ func LexBegin(lexer *Lexer) LexFn {
 		return LexSingleQuotedString
 	case strings.HasPrefix(remainingInput, doubleQuotationMark):
 		return LexDoubleQuotedString
-	case strings.HasPrefix(remainingInput, stringEqual):
-		return LexStringEqual
-	case strings.HasPrefix(remainingInput, regexEqual):
-		return LexRegexEqual
+	case strings.HasPrefix(remainingInput, not):
+		return LexNot
 	case strings.HasPrefix(remainingInput, and):
 		return LexAnd
 	case strings.HasPrefix(remainingInput, or):
 		return LexOr
-	case strings.HasPrefix(remainingInput, not):
-		return LexNot
+	case strings.HasPrefix(remainingInput, stringEqual):
+		return LexStringEqual
+	case strings.HasPrefix(remainingInput, regexEqual):
+		return LexRegexEqual
 	case strings.HasPrefix(strings.ToLower(remainingInput), sha1):
 		return LexSha1
 	default:
-		return lexer.Errorf(fmt.Sprintf(ErrorUnexpectedToken, remainingInput[0]))
+		return lexer.Errorf(fmt.Sprintf(errorUnexpectedToken, remainingInput[0]))
 	}
 }
