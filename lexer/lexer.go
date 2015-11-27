@@ -21,6 +21,7 @@ const (
 	not                               = "!"
 	and                               = "&&"
 	or                                = "||"
+	sha1                              = "sha1"
 )
 
 const (
@@ -120,7 +121,7 @@ func (lexer *Lexer) EatWhitespaces() rune {
 
 func LexComma(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
-	lexer.Position++
+	lexer.Position += len(comma)
 	lexer.Emit(TokenComma)
 
 	if lexer.IsEOF() {
@@ -134,7 +135,7 @@ func LexComma(lexer *Lexer) LexFn {
 
 func LexLeftParenthesis(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
-	lexer.Position++
+	lexer.Position += len(leftParenthesis)
 	lexer.Emit(TokenLeftParenthesis)
 	lexer.OpenParenthesisCount++
 
@@ -149,7 +150,7 @@ func LexLeftParenthesis(lexer *Lexer) LexFn {
 
 func LexRightParenthesis(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
-	lexer.Position++
+	lexer.Position += len(rightParenthesis)
 	lexer.Emit(TokenRightParenthesis)
 	lexer.OpenParenthesisCount--
 
@@ -172,7 +173,7 @@ func (lexer *Lexer) Errorf(err string) LexFn {
 }
 
 func LexSingleQuotedString(lexer *Lexer) LexFn {
-	lexer.Position++
+	lexer.Position += len(singleQuotationMark)
 	lexer.TokenStart = lexer.Position
 	for {
 		if lexer.IsEOF() {
@@ -186,7 +187,7 @@ func LexSingleQuotedString(lexer *Lexer) LexFn {
 			lexer.Position += len(escapedSingleQuotationMark)
 		case strings.HasPrefix(lexer.RemainingInput(), singleQuotationMark):
 			lexer.Emit(TokenSingleQuotedStringLiteral)
-			lexer.Position++
+			lexer.Position += len(singleQuotationMark)
 			return LexBegin
 		default:
 			lexer.Position++
@@ -195,7 +196,7 @@ func LexSingleQuotedString(lexer *Lexer) LexFn {
 }
 
 func LexDoubleQuotedString(lexer *Lexer) LexFn {
-	lexer.Position++
+	lexer.Position += len(doubleQuotationMark)
 	lexer.TokenStart = lexer.Position
 	for {
 		if lexer.IsEOF() {
@@ -209,7 +210,7 @@ func LexDoubleQuotedString(lexer *Lexer) LexFn {
 			lexer.Position += len(escapedDoubleQuotationMark)
 		case strings.HasPrefix(lexer.RemainingInput(), doubleQuotationMark):
 			lexer.Emit(TokenDoubleQuotedStringLiteral)
-			lexer.Position++
+			lexer.Position += len(doubleQuotationMark)
 			return LexBegin
 		default:
 			lexer.Position++
@@ -235,6 +236,62 @@ func LexRegexEqual(lexer *Lexer) LexFn {
 	lexer.TokenStart = lexer.Position
 	lexer.Position += len(regexEqual)
 	lexer.Emit(TokenRegexEqual)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
+func LexAnd(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(and)
+	lexer.Emit(TokenAnd)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
+func LexOr(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(or)
+	lexer.Emit(TokenOr)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
+func LexNot(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(not)
+	lexer.Emit(TokenNot)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
+func LexSha1(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(sha1)
+	lexer.Emit(TokenSha1)
 
 	if lexer.IsEOF() {
 		lexer.TokenStart = lexer.Position
@@ -276,6 +333,14 @@ func LexBegin(lexer *Lexer) LexFn {
 		return LexStringEqual
 	case strings.HasPrefix(remainingInput, regexEqual):
 		return LexRegexEqual
+	case strings.HasPrefix(remainingInput, and):
+		return LexAnd
+	case strings.HasPrefix(remainingInput, or):
+		return LexOr
+	case strings.HasPrefix(remainingInput, not):
+		return LexNot
+	case strings.HasPrefix(strings.ToLower(remainingInput), sha1):
+		return LexSha1
 	default:
 		return lexer.Errorf(fmt.Sprintf(ErrorUnexpectedToken, remainingInput[0]))
 	}
