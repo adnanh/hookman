@@ -119,6 +119,15 @@ func (lexer *Lexer) IsEOF() bool {
 	return lexer.Position >= utf8.RuneCountInString(lexer.Input)
 }
 
+// HasTokenTypeAt returns true if the lexer recognized given token type at the given position
+func (lexer *Lexer) HasTokenTypeAt(pos int, tokenType TokenType) bool {
+	if pos < 0 || pos >= len(lexer.Tokens) {
+		return false
+	}
+
+	return lexer.Tokens[pos].Type == tokenType
+}
+
 // Read returns current rune
 func (lexer *Lexer) Read() rune {
 	if lexer.IsEOF() {
