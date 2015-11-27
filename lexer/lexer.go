@@ -35,8 +35,7 @@ const (
 type TokenType int
 
 const (
-	TokenError TokenType = iota
-	TokenEOF
+	TokenEOF TokenType = iota
 
 	TokenLeftParenthesis
 	TokenRightParenthesis
@@ -62,7 +61,7 @@ type Lexer struct {
 	Input                string
 	Tokens               []Token
 	State                LexFn
-	Error                []error
+	Errors               []error
 	TokenStart           int
 	Position             int
 	OpenParenthesisCount int
@@ -85,7 +84,7 @@ func (lexer *Lexer) Lex() []error {
 		lexer.Errorf(ErrorClosingParenthesisMissing)
 	}
 
-	return lexer.Error
+	return lexer.Errors
 }
 
 func (lexer *Lexer) Emit(tokenType TokenType) {
@@ -172,7 +171,7 @@ func (lexer *Lexer) IsEOF() bool {
 }
 
 func (lexer *Lexer) Errorf(err string) LexFn {
-	lexer.Error = append(lexer.Error, fmt.Errorf("%s at position: %d", err, lexer.Position))
+	lexer.Errors = append(lexer.Errors, fmt.Errorf("%s at position: %d", err, lexer.Position))
 	return nil
 }
 
