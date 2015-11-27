@@ -82,8 +82,13 @@ func editHook(c *cli.Context) {
 	loadHooksOrDie(c)
 
 	l := lexer.New(strings.Join(c.Args(), " "))
-	l.Lex()
-	fmt.Printf("%+v\n", l)
+
+	if errors := l.Lex(); len(errors) == 0 {
+		fmt.Printf("%+v\n", l.Tokens)
+	} else {
+		fmt.Printf("%+v\n", errors)
+	}
+
 }
 
 func saveToHooksFile() {

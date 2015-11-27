@@ -151,12 +151,12 @@ func (lexer *Lexer) EatWhitespaces() rune {
 	for {
 		ch = lexer.Read()
 
-		if !unicode.IsSpace(ch) {
-			lexer.Position--
+		if ch == eof {
 			break
 		}
 
-		if ch == eof {
+		if !unicode.IsSpace(ch) {
+			lexer.Position--
 			break
 		}
 	}
