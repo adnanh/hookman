@@ -39,6 +39,7 @@ const (
 
 	TokenLeftParenthesis
 	TokenRightParenthesis
+	TokenComma
 	TokenRegexEqual
 	TokenStringEqual
 	TokenNot
@@ -116,6 +117,20 @@ func (lexer *Lexer) EatWhitespaces() rune {
 	}
 
 	return ch
+}
+
+func LexComma(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position++
+	lexer.Emit(TokenComma)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return lexer.Errorf(ErrorUnexpectedToken)
+	}
+
+	return LexBegin
 }
 
 func LexLeftParenthesis(lexer *Lexer) LexFn {
@@ -224,6 +239,8 @@ func LexBegin(lexer *Lexer) LexFn {
 		return LexLeftParenthesis
 	case strings.HasPrefix(remainingInput, rightParenthesis):
 		return LexRightParenthesis
+	case strings.HasPrefix(remainingInput, comma):
+		return LexComma
 	case strings.HasPrefix(remainingInput, singleQuotationMark):
 		return LexSingleQuotedString
 	case strings.HasPrefix(remainingInput, doubleQuotationMark):
