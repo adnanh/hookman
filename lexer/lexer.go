@@ -92,17 +92,16 @@ func (lexer *Lexer) RemainingInput() string {
 }
 
 func (lexer *Lexer) Read() rune {
-	lexer.Position++
-
-	if lexer.Position >= utf8.RuneCountInString(lexer.Input) {
+	if lexer.Position++; lexer.Position >= utf8.RuneCountInString(lexer.Input) {
 		return eof
 	}
 
-	return rune(lexer.Input[lexer.Position])
+	return rune(lexer.Input[lexer.Position-1])
 }
 
 func (lexer *Lexer) EatWhitespaces() rune {
-	var ch rune = eof
+	var ch rune
+
 	for {
 		ch = lexer.Read()
 
@@ -127,7 +126,7 @@ func LexComma(lexer *Lexer) LexFn {
 	if lexer.IsEOF() {
 		lexer.TokenStart = lexer.Position
 		lexer.Emit(TokenEOF)
-		return lexer.Errorf(ErrorUnexpectedToken)
+		return nil
 	}
 
 	return LexBegin
@@ -218,6 +217,34 @@ func LexDoubleQuotedString(lexer *Lexer) LexFn {
 	}
 }
 
+func LexStringEqual(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(stringEqual)
+	lexer.Emit(TokenStringEqual)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
+func LexRegexEqual(lexer *Lexer) LexFn {
+	lexer.TokenStart = lexer.Position
+	lexer.Position += len(regexEqual)
+	lexer.Emit(TokenRegexEqual)
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
+	return LexBegin
+}
+
 func LexBegin(lexer *Lexer) LexFn {
 	lexer.EatWhitespaces()
 
@@ -245,6 +272,10 @@ func LexBegin(lexer *Lexer) LexFn {
 		return LexSingleQuotedString
 	case strings.HasPrefix(remainingInput, doubleQuotationMark):
 		return LexDoubleQuotedString
+	case strings.HasPrefix(remainingInput, stringEqual):
+		return LexStringEqual
+	case strings.HasPrefix(remainingInput, regexEqual):
+		return LexRegexEqual
 	default:
 		return lexer.Errorf(fmt.Sprintf(ErrorUnexpectedToken, remainingInput[0]))
 	}
