@@ -59,7 +59,7 @@ const (
 	// TokenAnd is an and logical operator token
 	TokenAnd
 
-	// TokenOr is a or logical operator token
+	// TokenOr is an or logical operator token
 	TokenOr
 
 	// TokenSingleQuotedStringLiteral is a single quoted string literal token
