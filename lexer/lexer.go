@@ -26,6 +26,8 @@ const (
 const (
 	ErrorClosingSingleQuotationMarkIsMissing = "Missing closing single quotation mark"
 	ErrorClosingDoubleQuotationMarkIsMissing = "Missing closing double quotation mark"
+	ErrorClosingParenthesisMissing           = "Missing closing parenthesis"
+	ErrorUnexpectedToken                     = "Unexpected token %c"
 )
 
 // TokenType represents a type of recognized token
@@ -55,12 +57,13 @@ type Token struct {
 type LexFn func(*Lexer) LexFn
 
 type Lexer struct {
-	Input    string
-	Tokens   []Token
-	State    LexFn
-	Error    error
-	Start    int
-	Position int
+	Input                string
+	Tokens               []Token
+	State                LexFn
+	Error                error
+	TokenStart           int
+	Position             int
+	OpenParenthesisCount int
 }
 
 func New(input string) *Lexer {
@@ -80,22 +83,7 @@ func (lexer *Lexer) Lex() error {
 }
 
 func (lexer *Lexer) Emit(tokenType TokenType) {
-	lexer.Tokens = append(lexer.Tokens, Token{Type: tokenType, Value: lexer.Input[lexer.Start:lexer.Position]})
-	lexer.Start = lexer.Position
-}
-
-func (lexer *Lexer) IncrementPosition() {
-	lexer.Position++
-
-	if lexer.Position >= utf8.RuneCountInString(lexer.Input) {
-		lexer.Emit(TokenEOF)
-	}
-}
-
-func (lexer *Lexer) DecrementPosition() {
-	if lexer.Position--; lexer.Position < 0 {
-		lexer.Position = 0
-	}
+	lexer.Tokens = append(lexer.Tokens, Token{Type: tokenType, Value: lexer.Input[lexer.TokenStart:lexer.Position]})
 }
 
 func (lexer *Lexer) RemainingInput() string {
@@ -112,33 +100,51 @@ func (lexer *Lexer) Read() rune {
 	return rune(lexer.Input[lexer.Position])
 }
 
-func (lexer *Lexer) EatWhitespaces() {
+func (lexer *Lexer) EatWhitespaces() rune {
+	var ch rune = eof
 	for {
-		ch := lexer.Read()
+		ch = lexer.Read()
 
 		if !unicode.IsSpace(ch) {
-			lexer.DecrementPosition()
+			lexer.Position--
 			break
 		}
 
 		if ch == eof {
-			lexer.Emit(TokenEOF)
 			break
 		}
 	}
+
+	return ch
 }
 
 func LexLeftParenthesis(lexer *Lexer) LexFn {
-	lexer.Start = lexer.Position
-	lexer.IncrementPosition()
+	lexer.TokenStart = lexer.Position
+	lexer.Position++
 	lexer.Emit(TokenLeftParenthesis)
+	lexer.OpenParenthesisCount++
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return lexer.Errorf(ErrorClosingParenthesisMissing)
+	}
+
 	return LexBegin
 }
 
 func LexRightParenthesis(lexer *Lexer) LexFn {
-	lexer.Start = lexer.Position
-	lexer.IncrementPosition()
+	lexer.TokenStart = lexer.Position
+	lexer.Position++
 	lexer.Emit(TokenRightParenthesis)
+	lexer.OpenParenthesisCount--
+
+	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+		return nil
+	}
+
 	return LexBegin
 }
 
@@ -152,45 +158,47 @@ func (lexer *Lexer) Errorf(err string) LexFn {
 }
 
 func LexSingleQuotedString(lexer *Lexer) LexFn {
-	lexer.IncrementPosition()
-	lexer.Start = lexer.Position
+	lexer.Position++
+	lexer.TokenStart = lexer.Position
 	for {
 		if lexer.IsEOF() {
-			lexer.Errorf(ErrorClosingSingleQuotationMarkIsMissing)
-			return nil
+			lexer.TokenStart = lexer.Position
+			lexer.Emit(TokenEOF)
+			return lexer.Errorf(ErrorClosingSingleQuotationMarkIsMissing)
 		}
 
 		switch {
 		case strings.HasPrefix(lexer.RemainingInput(), escapedSingleQuotationMark):
-			lexer.Position += 2
+			lexer.Position += len(escapedSingleQuotationMark)
 		case strings.HasPrefix(lexer.RemainingInput(), singleQuotationMark):
 			lexer.Emit(TokenSingleQuotedStringLiteral)
-			lexer.IncrementPosition()
+			lexer.Position++
 			return LexBegin
 		default:
-			lexer.IncrementPosition()
+			lexer.Position++
 		}
 	}
 }
 
 func LexDoubleQuotedString(lexer *Lexer) LexFn {
-	lexer.IncrementPosition()
-	lexer.Start = lexer.Position
+	lexer.Position++
+	lexer.TokenStart = lexer.Position
 	for {
 		if lexer.IsEOF() {
-			lexer.Errorf(ErrorClosingDoubleQuotationMarkIsMissing)
-			return nil
+			lexer.TokenStart = lexer.Position
+			lexer.Emit(TokenEOF)
+			return lexer.Errorf(ErrorClosingDoubleQuotationMarkIsMissing)
 		}
 
 		switch {
 		case strings.HasPrefix(lexer.RemainingInput(), escapedDoubleQuotationMark):
-			lexer.Position += 2
+			lexer.Position += len(escapedDoubleQuotationMark)
 		case strings.HasPrefix(lexer.RemainingInput(), doubleQuotationMark):
 			lexer.Emit(TokenDoubleQuotedStringLiteral)
-			lexer.IncrementPosition()
+			lexer.Position++
 			return LexBegin
 		default:
-			lexer.IncrementPosition()
+			lexer.Position++
 		}
 	}
 }
@@ -199,6 +207,13 @@ func LexBegin(lexer *Lexer) LexFn {
 	lexer.EatWhitespaces()
 
 	if lexer.IsEOF() {
+		lexer.TokenStart = lexer.Position
+		lexer.Emit(TokenEOF)
+
+		if lexer.OpenParenthesisCount > 0 {
+			return lexer.Errorf(ErrorClosingParenthesisMissing)
+		}
+
 		return nil
 	}
 
@@ -214,6 +229,6 @@ func LexBegin(lexer *Lexer) LexFn {
 	case strings.HasPrefix(remainingInput, doubleQuotationMark):
 		return LexDoubleQuotedString
 	default:
-		return nil
+		return lexer.Errorf(fmt.Sprintf(ErrorUnexpectedToken, remainingInput[0]))
 	}
 }
