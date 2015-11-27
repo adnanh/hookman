@@ -15,13 +15,21 @@ type Parser struct {
 
 // New returns a new instance of Parser for given input string
 func New(input string) *Parser {
-	return &Parser{Lexer: lexer.New(input), GeneratedRule: nil}
+	return &Parser{Lexer: lexer.New(input), GeneratedRule: &hook.Rules{}}
 }
 
 // Parse performs lexical analysis of the input string and generates rules based on the lexer output
 func (parser *Parser) Parse() error {
 	if errors := parser.Lexer.Lex(); len(errors) > 0 {
 		return fmt.Errorf("Error while parsing input string: %s", errors[0])
+	}
+
+	//var nextRule *hook.Rules
+
+	tokens := parser.Lexer.Tokens
+
+	for i := 0; i < len(tokens); i++ {
+		fmt.Printf("%+v\n", tokens[i])
 	}
 
 	return nil
