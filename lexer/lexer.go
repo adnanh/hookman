@@ -121,11 +121,15 @@ func (lexer *Lexer) IsEOF() bool {
 
 // Read returns current rune
 func (lexer *Lexer) Read() rune {
-	if lexer.Position++; lexer.IsEOF() {
+	if lexer.IsEOF() {
 		return eof
 	}
 
-	return rune(lexer.Input[lexer.Position-1])
+	ch := rune(lexer.Input[lexer.Position])
+
+	lexer.Position++
+
+	return ch
 }
 
 // Emit appends given token to the lexer tokens slice
@@ -351,9 +355,7 @@ func LexSha1(lexer *Lexer) LexFn {
 
 // LexBegin skips all whitespaces and returns a function that can lex the remaining input
 func LexBegin(lexer *Lexer) LexFn {
-	lexer.EatWhitespaces()
-
-	if lexer.IsEOF() {
+	if lexer.EatWhitespaces(); lexer.IsEOF() {
 		lexer.TokenStart = lexer.Position
 		lexer.Emit(TokenEOF)
 		return nil

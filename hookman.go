@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/adnanh/hookman/lexer"
+	"github.com/adnanh/hookman/parser"
 	"github.com/adnanh/webhook/hook"
 	"github.com/codegangsta/cli"
 )
@@ -81,14 +81,12 @@ func listAllHooks(c *cli.Context) {
 func editHook(c *cli.Context) {
 	loadHooksOrDie(c)
 
-	l := lexer.New(strings.Join(c.Args(), " "))
+	p := parser.New(strings.Join(c.Args(), " "))
 
-	if errors := l.Lex(); len(errors) == 0 {
-		fmt.Printf("%+v\n", l.Tokens)
-	} else {
-		fmt.Printf("%+v\n", errors)
+	if error := p.Parse(); error != nil {
+		fmt.Printf("%+v\n", error)
+		return
 	}
-
 }
 
 func saveToHooksFile() {
