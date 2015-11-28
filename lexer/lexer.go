@@ -25,10 +25,10 @@ const (
 )
 
 const (
-	errorClosingSingleQuotationMarkIsMissing = "Missing closing single quotation mark"
-	errorClosingDoubleQuotationMarkIsMissing = "Missing closing double quotation mark"
-	errorClosingParenthesisMissing           = "Missing closing parenthesis"
-	errorUnexpectedToken                     = "Unexpected token %c"
+	errorClosingSingleQuotationMarkIsMissing = "missing closing single quotation mark"
+	errorClosingDoubleQuotationMarkIsMissing = "missing closing double quotation mark"
+	errorClosingParenthesisMissing           = "missing closing parenthesis"
+	errorUnexpectedToken                     = "unexpected token %c"
 )
 
 // TokenType represents a type of recognized token
