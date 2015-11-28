@@ -35,7 +35,7 @@ func (r OrRule) String() string {
 		stringSlice[idx] = fmt.Sprintf("%s", (Rules)(rule))
 	}
 
-	return fmt.Sprintf("(%s)", strings.Join(stringSlice, " or "))
+	return fmt.Sprintf("%s", strings.Join(stringSlice, " || "))
 }
 
 func (r NotRule) String() string {
@@ -45,13 +45,13 @@ func (r NotRule) String() string {
 func (r MatchRule) String() string {
 	switch {
 	case r.Type == hook.MatchValue:
-		return fmt.Sprintf("matchValue(\"%s.%s\", \"%s\")", r.Parameter.Source, r.Parameter.Name, r.Value)
+		return fmt.Sprintf("\"%s.%s\" == \"%s\"", r.Parameter.Source, r.Parameter.Name, r.Value)
 	case r.Type == hook.MatchRegex:
-		return fmt.Sprintf("matchRegex(\"%s.%s\", \"%s\")", r.Parameter.Source, r.Parameter.Name, r.Regex)
+		return fmt.Sprintf("\"%s.%s\" ~= \"%s\"", r.Parameter.Source, r.Parameter.Name, r.Regex)
 	case r.Type == hook.MatchHashSHA1:
-		return fmt.Sprintf("matchHashSHA1(\"%s.%s\", \"%s\")", r.Parameter.Source, r.Parameter.Name, r.Secret)
+		return fmt.Sprintf("\"%s.%s\" == sha1(\"payload\", \"%s\")", r.Parameter.Source, r.Parameter.Name, r.Secret)
 	default:
-		return "Invalid match rule"
+		return "<INVALID MATCH RULE>"
 	}
 }
 
@@ -66,7 +66,7 @@ func (r Rules) String() string {
 	case r.Match != nil:
 		return fmt.Sprintf("%s", (*MatchRule)(r.Match))
 	default:
-		return "No rule"
+		return "<NO RULE>"
 	}
 }
 
@@ -77,7 +77,7 @@ func (r *AndRule) String() string {
 		stringSlice[idx] = fmt.Sprintf("%s", Rules(rule))
 	}
 
-	return fmt.Sprintf("(%s)", strings.Join(stringSlice, " and "))
+	return fmt.Sprintf("%s", strings.Join(stringSlice, " && "))
 }
 
 func (h Hook) String() string {
