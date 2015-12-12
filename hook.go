@@ -121,7 +121,7 @@ func (h Hook) String() string {
 func (h CompactHook) String() string {
 	var result []string
 
-	result = append(result, fmt.Sprintf("%s", h.ID))
+	result = append(result, fmt.Sprintf("%s [%%d]", h.ID))
 
 	if h.ExecuteCommand != "" {
 		result = append(result, fmt.Sprintf("%s", h.ExecuteCommand))

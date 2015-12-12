@@ -40,7 +40,7 @@ func loadHooksOrDie(c *cli.Context) {
 	hookCount = len(webhookHooks)
 }
 
-func listAllHooks(c *cli.Context) {
+func listHooks(c *cli.Context) {
 	loadHooksOrDie(c)
 
 	if hookCount == 0 {
@@ -59,23 +59,58 @@ func listAllHooks(c *cli.Context) {
 
 	sort.Strings(hooksIds)
 
-	compact := c.BoolT("compact")
+	expanded := c.Bool("expanded")
 
-	for _, hookID := range hooksIds {
-		for idx, h := range hooksMap[hookID] {
-			if compact {
-				log.Printf("%d, %s\n", idx, (CompactHook)(h))
-			} else {
-				log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(h))
+	if len(c.Args()) == 0 {
+		for _, hookID := range hooksIds {
+			for idx, h := range hooksMap[hookID] {
+				if !expanded {
+					log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(h).String(), idx))
+				} else {
+					log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(h))
+				}
 			}
 		}
-	}
 
-	if compact {
-		log.Println("")
-	}
+		log.Printf("total %d hook(s) in file: %s\n", hookCount, hooksFile)
+	} else {
+		compact := c.Bool("compact")
+		hookID := c.Args()[0]
+		hooksSlice, ok := hooksMap[hookID]
+		matchingHookCount := 0
 
-	log.Printf("total %d hook(s) in file: %s\n", hookCount, hooksFile)
+		if ok {
+			matchingHookCount = len(hooksSlice)
+		}
+
+		if matchingHookCount == 0 {
+			log.Fatalln("error: could not find any hooks matching the given id")
+		}
+
+		if c.IsSet("idx") {
+			idx := c.Int("idx")
+
+			if idx >= matchingHookCount || idx < 0 {
+				log.Fatalln("error: given local hook index is out of bounds")
+			}
+
+			if compact {
+				log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(hooksSlice[idx]).String(), idx))
+			} else {
+				log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hooksSlice[idx]))
+			}
+		} else {
+			for idx, hook := range hooksSlice {
+				if compact {
+					log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(hook).String(), idx))
+				} else {
+					log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hook))
+				}
+			}
+		}
+
+		log.Printf("total %d hook(s) matching ID %s in file: %s\n", matchingHookCount, hookID, hooksFile)
+	}
 }
 
 func editHook(c *cli.Context) {
@@ -113,64 +148,9 @@ func formatHooksFile(c *cli.Context) {
 	saveToHooksFile()
 }
 
-func showHook(c *cli.Context) {
-	if len(c.Args()) == 0 {
-		log.Fatalln("error: you must provide a valid hook id")
-	}
-
-	loadHooksOrDie(c)
-
-	var hooksSlice hook.Hooks
-
-	hookID := c.Args()[0]
-
-	for _, h := range webhookHooks {
-		if h.ID == hookID {
-			hooksSlice = append(hooksSlice, h)
-		}
-	}
-
-	matchingHookCount := len(hooksSlice)
-
-	if matchingHookCount == 0 {
-		log.Fatalln("error: could not find any hooks matching the given id")
-	}
-
-	if c.IsSet("idx") {
-		idx := c.Int("idx")
-
-		if idx >= matchingHookCount || idx < 0 {
-			log.Fatalln("error: given local hook index is out of bounds")
-		}
-
-		log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hooksSlice[idx]))
-	} else {
-		for idx, hook := range hooksSlice {
-			log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hook))
-		}
-	}
-}
-
 func init() {
 	log.SetFlags(0)
 }
-
-/*
-	 hookman add|a redeploy
-		 adds an empty hook named redeploy
-
-	 hookman remove|rm|delete|del redeploy
-		 --all - removes all hooks
-		 --idx 1 - remove the 2nd instance of redeploy hook
-		 removes the hook named redeploy
-
-	 hookman edit|e redeploy
-		 --create create hook if it does not exist
-		 --set property=value set value for the given property
-		 --append property=value append the value to the property
-		 --unset property[idx] removes the property from the hook, or the idx-th value from the property
-		 modifies the hook named redeploy based on the flags
-*/
 
 func main() {
 	app := cli.NewApp()
@@ -191,22 +171,18 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:    "list",
-			Aliases: []string{"ls"},
-			Usage:   "prints all hooks in the hooks file",
-			Action:  listAllHooks,
+			Aliases: []string{"ls", "show", "s"},
+			Usage:   "lists hooks from the hooks file, or the hook(s) matching the given id",
+			Action:  listHooks,
 			Flags: []cli.Flag{
-				cli.BoolTFlag{
-					Name:  "compact, c",
-					Usage: "print compact version of hooks",
+				cli.BoolFlag{
+					Name:  "expanded, e",
+					Usage: "print expanded version when listing all hooks",
 				},
-			},
-		},
-		{
-			Name:    "show",
-			Aliases: []string{"s"},
-			Usage:   "shows the given hook details",
-			Action:  showHook,
-			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "compact, c",
+					Usage: "print compact version of hook(s) matching the given id",
+				},
 				cli.IntFlag{
 					Name:  "idx, i",
 					Usage: "local hook index (used for differentiating multiple hooks with the same id)",
