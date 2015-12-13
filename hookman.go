@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/adnanh/hookman/parser"
 	"github.com/adnanh/webhook/hook"
 	"github.com/codegangsta/cli"
 )
@@ -18,117 +17,67 @@ const (
 	version = "0.0.1"
 )
 
-var authors = []cli.Author{
-	{
-		Name:  "Adnan Hajdarevic",
-		Email: "adnanh@gmail.com",
-	},
+var (
+	authors = []cli.Author{
+		{
+			Name:  "Adnan Hajdarevic",
+			Email: "adnanh@gmail.com",
+		},
+	}
+
+	hooks     hook.Hooks
+	hooksIds  []string
+	hooksMap  = make(map[string][]*hook.Hook)
+	hooksFile string
+)
+
+func deleteHooks(hooksToDelete []*hook.Hook) {
+	var newHooks hook.Hooks
+
+	for i := 0; i < len(hooks); i++ {
+		found := false
+
+		for j := 0; j < len(hooksToDelete); j++ {
+			if &(hooks[i]) == hooksToDelete[j] {
+				found = true
+			}
+		}
+
+		if !found {
+			newHooks = append(newHooks, hooks[i])
+		}
+	}
+
+	hooks = newHooks
 }
 
-var webhookHooks hook.Hooks
-var hooksFile string
-var hookCount int
-
-func loadHooksOrDie(c *cli.Context) {
+func loadHooks(c *cli.Context) error {
 	hooksFile = c.GlobalString("file")
-	err := webhookHooks.LoadFromFile(hooksFile)
 
-	if err != nil {
-		log.Fatalf("error: could not load hooks from file: %+v\n", err)
+	if err := hooks.LoadFromFile(hooksFile); err != nil {
+		return fmt.Errorf("could not load hooks from file: %s\n", err)
 	}
 
-	hookCount = len(webhookHooks)
-}
+	for i := 0; i < len(hooks); i++ {
+		h := &hooks[i]
 
-func listHooks(c *cli.Context) {
-	loadHooksOrDie(c)
-
-	if hookCount == 0 {
-		log.Fatalln("hooks file is empty")
-	}
-
-	hooksMap := make(map[string]hook.Hooks)
-	var hooksIds []string
-
-	for _, h := range webhookHooks {
 		if _, ok := hooksMap[h.ID]; !ok {
 			hooksIds = append(hooksIds, h.ID)
 		}
+
 		hooksMap[h.ID] = append(hooksMap[h.ID], h)
 	}
 
 	sort.Strings(hooksIds)
 
-	expanded := c.Bool("expanded")
-
-	if len(c.Args()) == 0 {
-		for _, hookID := range hooksIds {
-			for idx, h := range hooksMap[hookID] {
-				if !expanded {
-					log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(h).String(), idx))
-				} else {
-					log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(h))
-				}
-			}
-		}
-
-		log.Printf("total %d hook(s) in file: %s\n", hookCount, hooksFile)
-	} else {
-		compact := c.Bool("compact")
-		hookID := c.Args()[0]
-		hooksSlice, ok := hooksMap[hookID]
-		matchingHookCount := 0
-
-		if ok {
-			matchingHookCount = len(hooksSlice)
-		}
-
-		if matchingHookCount == 0 {
-			log.Fatalln("error: could not find any hooks matching the given id")
-		}
-
-		if c.IsSet("idx") {
-			idx := c.Int("idx")
-
-			if idx >= matchingHookCount || idx < 0 {
-				log.Fatalln("error: given local hook index is out of bounds")
-			}
-
-			if compact {
-				log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(hooksSlice[idx]).String(), idx))
-			} else {
-				log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hooksSlice[idx]))
-			}
-		} else {
-			for idx, hook := range hooksSlice {
-				if compact {
-					log.Printf("  %s\n\n", fmt.Sprintf((CompactHook)(hook).String(), idx))
-				} else {
-					log.Printf("INDEX:\n   %d\n\n%s\n", idx, (Hook)(hook))
-				}
-			}
-		}
-
-		log.Printf("total %d hook(s) matching ID %s in file: %s\n", matchingHookCount, hookID, hooksFile)
-	}
+	return nil
 }
 
-func editHook(c *cli.Context) {
-	loadHooksOrDie(c)
-
-	p := parser.New(strings.Join(c.Args(), " "))
-
-	if error := p.Parse(); error != nil {
-		fmt.Printf("%+v\n", error)
-		return
-	}
-}
-
-func saveToHooksFile() {
-	formattedOutput, err := json.MarshalIndent(webhookHooks, "", "  ")
+func saveHooks() error {
+	formattedOutput, err := json.MarshalIndent(hooks, "", "  ")
 
 	if err != nil {
-		log.Fatalf("error: could not format hooks file:\n%+v\n", err)
+		return fmt.Errorf("could not format hooks file: %s\n", err)
 	}
 
 	fileInfo, _ := os.Stat(hooksFile)
@@ -137,15 +86,261 @@ func saveToHooksFile() {
 	err = ioutil.WriteFile(hooksFile, formattedOutput, fileMode.Perm())
 
 	if err != nil {
-		log.Fatalf("error: could not create hooks file:\n%+v\n", err)
-	} else {
-		log.Println("success")
+		return fmt.Errorf("could not create hooks file: %s\n", err)
 	}
+
+	log.Println("ok")
+
+	return nil
 }
 
 func formatHooksFile(c *cli.Context) {
-	loadHooksOrDie(c)
-	saveToHooksFile()
+	if err := loadHooks(c); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	if err := saveHooks(); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+}
+
+func printHook(h *hook.Hook, idx int, compact bool) {
+	if compact {
+		log.Printf("  %s\n\n", fmt.Sprintf((*CompactHook)(h).String(), idx))
+	} else {
+		log.Printf("INDEX:\n   %d\n\n%s\n", idx, (*Hook)(h))
+	}
+}
+
+func terminateOnEmptyHooksFile() {
+	if len(hooks) == 0 {
+		log.Fatalln("error: hooks file is empty")
+	}
+}
+
+func listHooks(c *cli.Context) {
+	if err := loadHooks(c); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	terminateOnEmptyHooksFile()
+
+	expanded := c.Bool("expanded")
+
+	if len(c.Args()) == 0 {
+		// user did not supply hook id, print all hooks
+		for _, hookID := range hooksIds {
+			for idx, h := range hooksMap[hookID] {
+				printHook(h, idx, !expanded)
+			}
+		}
+
+		log.Printf("total %d hook(s) in file: %s\n", len(hooks), hooksFile)
+	} else {
+		// user supplied hook id, print only hooks matching the given id
+
+		compact := c.Bool("compact")
+
+		if c.IsSet("idx") {
+			h, err := findOneHookByID(c)
+
+			if err != nil {
+				log.Fatalf("error: %s\n", err)
+			}
+
+			printHook(h, c.Int("idx"), compact)
+		} else {
+			hooksSlice, err := findHooksByID(c)
+
+			if err != nil {
+				log.Fatalf("error: %s\n", err)
+			}
+
+			for idx, h := range hooksSlice {
+				printHook(h, idx, compact)
+			}
+
+			log.Printf("total %d hook(s) with ID %s in file: %s\n", len(hooksSlice), c.Args()[0], hooksFile)
+		}
+
+	}
+}
+
+func addHook(c *cli.Context) {
+	if err := loadHooks(c); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	if len(c.Args()) == 0 {
+		log.Fatalln("error: you must supply hook id")
+	}
+
+	newHook := hook.Hook{ID: c.Args()[0]}
+
+	hooks = append(hooks, newHook)
+
+	saveHooks()
+}
+
+func deleteHook(c *cli.Context) {
+	if err := loadHooks(c); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	terminateOnEmptyHooksFile()
+
+	hooksToBeDeleted, err := findHooksByID(c)
+
+	if err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	if len(hooksToBeDeleted) > 1 {
+		if !c.IsSet("idx") && (!c.IsSet("all") || !c.Bool("all")) {
+			log.Fatalf("there are %d hook(s) matching the given id\nuse --idx index to specify the one you want to delete\nor use --all to delete all of them\n", len(hooksToBeDeleted))
+		} else {
+			if !c.Bool("all") && c.IsSet("idx") {
+				h, err := findOneHookByID(c)
+
+				if err != nil {
+					log.Fatalf("error: %s\n", err)
+				}
+
+				hooksToBeDeleted = append(make([]*hook.Hook, 0), h)
+			}
+		}
+	}
+
+	deleteHooks(hooksToBeDeleted)
+
+	saveHooks()
+}
+
+func unsetHookProperties(h *hook.Hook, properties []string) error {
+	for _, property := range properties {
+		property = strings.ToLower(property)
+		switch {
+		case property == "id":
+			log.Fatalln("error: property id is required")
+
+		case property == "execute-command":
+			fallthrough
+		case property == "cmd":
+			log.Println(" - removing execute-command")
+			h.ExecuteCommand = ""
+
+		case property == "trigger-rule":
+			fallthrough
+		case property == "rule":
+			log.Println(" - removing trigger-rule")
+			h.TriggerRule = nil
+
+		case property == "command-working-directory":
+			fallthrough
+		case property == "cwd":
+			log.Println(" - removing command-working-directory")
+			h.CommandWorkingDirectory = ""
+
+		case property == "response-message":
+			fallthrough
+		case property == "message":
+			log.Println(" - removing response-message")
+			h.ResponseMessage = ""
+
+		case property == "pass-environment-to-command":
+			fallthrough
+		case property == "env":
+			log.Println(" - removing pass-environment-to-command")
+			h.PassEnvironmentToCommand = nil
+
+		case property == "pass-arguments-to-command":
+			fallthrough
+		case property == "args":
+			log.Println(" - removing pass-arguments-to-command")
+			h.PassArgumentsToCommand = nil
+
+		case property == "parse-parameters-as-json":
+			fallthrough
+		case property == "json-params":
+			log.Println(" - removing parse-parameters-as-json")
+			h.JSONStringParameters = nil
+
+		case property == "include-command-output-in-response":
+			fallthrough
+		case property == "include-response":
+			log.Println(" - removing include-command-output-in-response")
+			h.CaptureCommandOutput = false
+
+		default:
+			return fmt.Errorf("invalid property name %s", property)
+		}
+	}
+
+	return nil
+}
+
+func findHooksByID(c *cli.Context) ([]*hook.Hook, error) {
+	if len(c.Args()) == 0 {
+		return nil, fmt.Errorf("you must specify a valid hook id")
+	}
+
+	hooksSlice, ok := hooksMap[c.Args()[0]]
+
+	if !ok {
+		return nil, fmt.Errorf("could not find any hooks matching the given id")
+	}
+
+	return hooksSlice, nil
+}
+
+func findOneHookByID(c *cli.Context) (*hook.Hook, error) {
+	hooksSlice, err := findHooksByID(c)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !c.IsSet("idx") && len(hooksSlice) > 1 {
+		return nil, fmt.Errorf("there are %d hook(s) matching the given id\nuse --idx index to specify the one you want to modify", len(hooksSlice))
+	}
+
+	idx := c.Int("idx")
+
+	if idx >= len(hooksSlice) || idx < 0 {
+		return nil, fmt.Errorf("given local hook index is out of bounds")
+	}
+
+	return hooksSlice[idx], nil
+}
+
+func editHook(c *cli.Context) {
+	if err := loadHooks(c); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	terminateOnEmptyHooksFile()
+
+	h, err := findOneHookByID(c)
+
+	if err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	if err := unsetHookProperties(h, c.StringSlice("unset")); err != nil {
+		log.Fatalf("error: cannot remove property: %s\n", err)
+	}
+
+	if err := saveHooks(); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
+
+	// p := parser.New(strings.Join(c.Args(), " "))
+	//
+	// if error := p.Parse(); error != nil {
+	// 	fmt.Printf("%+v\n", error)
+	// 	return
+	// }
+
 }
 
 func init() {
@@ -197,7 +392,7 @@ func main() {
 		},
 		{
 			Name:    "edit",
-			Aliases: []string{"e"},
+			Aliases: []string{"e", "modify", "mod"},
 			Usage:   "modifies the given hook according to specified flags",
 			Action:  editHook,
 			Flags: []cli.Flag{
@@ -211,12 +406,37 @@ func main() {
 					Usage: "property=value",
 				},
 				cli.StringSliceFlag{
-					Name:  "append, a",
-					Usage: "property=value",
-				},
-				cli.StringSliceFlag{
 					Name:  "unset, u",
 					Usage: "property name",
+				},
+			},
+		},
+		{
+			Name:    "add",
+			Aliases: []string{"a", "new", "n", "create", "c"},
+			Usage:   "creates a hook with the given id according to specified flags",
+			Action:  addHook,
+			Flags: []cli.Flag{
+				cli.StringSliceFlag{
+					Name:  "set, s",
+					Usage: "property=value",
+				},
+			},
+		},
+		{
+			Name:    "delete",
+			Aliases: []string{"del", "remove", "rm"},
+			Usage:   "removes the hook matching the given id",
+			Action:  deleteHook,
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "idx, i",
+					Value: 0,
+					Usage: "local hook index (used for differentiating multiple hooks with the same id)",
+				},
+				cli.BoolFlag{
+					Name:  "all, a",
+					Usage: "remove all hooks matching the given id",
 				},
 			},
 		},
