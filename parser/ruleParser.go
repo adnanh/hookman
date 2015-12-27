@@ -8,10 +8,10 @@ import (
 	"github.com/adnanh/webhook/hook"
 )
 
-type expressionType int
+type ruleExpressionType int
 
 const (
-	matchValue expressionType = iota
+	matchValue ruleExpressionType = iota
 	matchRegex
 	matchHashSHA1
 	and
@@ -33,24 +33,24 @@ const (
 	invalidSha1Target                  = "syntax error %%s\n%ssha1 target must be payload"
 )
 
-// Parser is a struct that contains Lexer and the GeneratedRule
-type Parser struct {
+// RuleParser is a struct that contains Lexer and the GeneratedRule
+type RuleParser struct {
 	Lexer         *lexer.Lexer
 	Position      int
 	GeneratedRule *hook.Rules
 }
 
-type expression struct {
+type ruleExpression struct {
 	tokens         []lexer.Token
-	subExpressions []expression
+	subExpressions []ruleExpression
 }
 
-// New returns a new instance of Parser for given input string
-func New(input string) *Parser {
-	return &Parser{Lexer: lexer.New(input), GeneratedRule: &hook.Rules{}}
+// NewRuleParser returns a new instance of RuleParser for given input string
+func NewRuleParser(input string) *RuleParser {
+	return &RuleParser{Lexer: lexer.New(input), GeneratedRule: &hook.Rules{}}
 }
 
-func (parser *Parser) hasPrefix(exprType expressionType) bool {
+func (parser *RuleParser) hasPrefix(exprType ruleExpressionType) bool {
 	switch {
 	case exprType == and:
 		return parser.Lexer.HasTokenTypeAt(parser.Position, lexer.TokenAnd)
@@ -92,7 +92,7 @@ func (parser *Parser) hasPrefix(exprType expressionType) bool {
 	return false
 }
 
-func (parser *Parser) Error(err string, tokenPos int) error {
+func (parser *RuleParser) Error(err string, tokenPos int) error {
 	absolutePosition := 0
 	token := parser.Lexer.Tokens[tokenPos]
 	tokenValue := token.Value
@@ -112,7 +112,7 @@ func (parser *Parser) Error(err string, tokenPos int) error {
 	return fmt.Errorf(err, fmt.Sprintf("(token: %s, pos: %d)", tokenValue, absolutePosition))
 }
 
-func (parser *Parser) parseRule(depth int) (*hook.Rules, error) {
+func (parser *RuleParser) parseRule(depth int) (*hook.Rules, error) {
 	var err error
 	var rule hook.Rules
 	var subRules []hook.Rules
@@ -323,7 +323,7 @@ func printRule(r *hook.Rules, indent int) {
 }
 
 // Parse performs lexical analysis of the input string and generates rules based on the lexer output
-func (parser *Parser) Parse() error {
+func (parser *RuleParser) Parse() error {
 	if errors := parser.Lexer.Lex(); len(errors) > 0 {
 		return fmt.Errorf("error while parsing input string:\n\t%s", errors[0])
 	}

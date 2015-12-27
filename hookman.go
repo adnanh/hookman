@@ -249,7 +249,7 @@ func setHookProperties(h *hook.Hook, propertyValuePairs []string) error {
 		case property == "rule":
 			log.Printf(" + setting trigger-rule to %s\n", value)
 
-			p := parser.New(value)
+			p := parser.NewRuleParser(value)
 
 			if error := p.Parse(); error != nil {
 				return error
@@ -268,23 +268,44 @@ func setHookProperties(h *hook.Hook, propertyValuePairs []string) error {
 			log.Printf(" + setting response-message to %s\n", value)
 			h.ResponseMessage = value
 
-		/*case property == "pass-environment-to-command":
+		case property == "pass-environment-to-command":
 			fallthrough
 		case property == "env":
-			log.Println(" - removing pass-environment-to-command")
-			h.PassEnvironmentToCommand = nil
+			log.Printf(" + setting pass-environment-to-command to %s\n", value)
+
+			p := parser.NewArgumentParser(value)
+
+			if error := p.Parse(); error != nil {
+				return error
+			}
+
+			h.PassEnvironmentToCommand = p.GeneratedArguments
 
 		case property == "pass-arguments-to-command":
 			fallthrough
 		case property == "args":
-			log.Println(" - removing pass-arguments-to-command")
-			h.PassArgumentsToCommand = nil
+			log.Printf(" + setting pass-arguments-to-command to %s\n", value)
+
+			p := parser.NewArgumentParser(value)
+
+			if error := p.Parse(); error != nil {
+				return error
+			}
+
+			h.PassArgumentsToCommand = p.GeneratedArguments
 
 		case property == "parse-parameters-as-json":
 			fallthrough
 		case property == "json-params":
-			log.Println(" - removing parse-parameters-as-json")
-			h.JSONStringParameters = nil*/
+			log.Printf(" + setting parse-parameters-as-json to %s\n", value)
+
+			p := parser.NewArgumentParser(value)
+
+			if error := p.Parse(); error != nil {
+				return error
+			}
+
+			h.JSONStringParameters = p.GeneratedArguments
 
 		case property == "include-command-output-in-response":
 			fallthrough

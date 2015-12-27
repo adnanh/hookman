@@ -136,18 +136,12 @@ func argumentsToString(args []hook.Argument) string {
 	argsSlice := make([]string, len(args))
 
 	for idx, arg := range args {
-		argsSlice[idx] = fmt.Sprintf("%s.%s", arg.Source, arg.Name)
+		argsSlice[idx] = fmt.Sprintf("\"%s.%s\"", arg.Source, arg.Name)
 	}
 
-	return fmt.Sprintf("[%s]", strings.Join(argsSlice, ", "))
+	return fmt.Sprintf("%s", strings.Join(argsSlice, ", "))
 }
 
 func environmentToString(args []hook.Argument) string {
-	argsSlice := make([]string, len(args))
-
-	for idx, arg := range args {
-		argsSlice[idx] = fmt.Sprintf("HOOK_%s=%s.%s", arg.Name, arg.Source, arg.Name)
-	}
-
-	return fmt.Sprintf("[%s]", strings.Join(argsSlice, ", "))
+	return argumentsToString(args)
 }
