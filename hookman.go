@@ -75,14 +75,27 @@ func loadHooks(c *cli.Context) error {
 }
 
 func saveHooks() error {
-	formattedOutput, err := json.MarshalIndent(hooks, "", "  ")
+	var formattedOutput []byte
+	var err error
 
-	if err != nil {
-		return fmt.Errorf("could not format hooks file: %s\n", err)
+	if len(hooks) == 0 {
+		formattedOutput = []byte("[]\n")
+	} else {
+		formattedOutput, err = json.MarshalIndent(hooks, "", "  ")
+
+		if err != nil {
+			return fmt.Errorf("could not format hooks file: %s\n", err)
+		}
 	}
 
-	fileInfo, _ := os.Stat(hooksFile)
-	fileMode := fileInfo.Mode()
+	fileInfo, err := os.Stat(hooksFile)
+	var fileMode os.FileMode
+
+	if err != nil {
+		fileMode = os.FileMode(0644)
+	} else {
+		fileMode = fileInfo.Mode()
+	}
 
 	err = ioutil.WriteFile(hooksFile, formattedOutput, fileMode.Perm())
 
@@ -455,6 +468,16 @@ func editHook(c *cli.Context) {
 	}
 }
 
+func touchHooksFile(c *cli.Context) {
+	if err := loadHooks(c); err != nil {
+		if err := saveHooks(); err != nil {
+			log.Fatalf("error: %s\n", err)
+		}
+	} else {
+		log.Fatalln("error: hooks file already exists")
+	}
+}
+
 func init() {
 	log.SetFlags(0)
 }
@@ -534,6 +557,12 @@ func main() {
 					Usage: "property=value",
 				},
 			},
+		},
+		{
+			Name:    "touch",
+			Aliases: []string{"t"},
+			Usage:   "creates an empty hooks file if it does not already exist",
+			Action:  touchHooksFile,
 		},
 		{
 			Name:    "delete",
