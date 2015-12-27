@@ -330,11 +330,9 @@ func (parser *Parser) Parse() error {
 
 	rule, err := parser.parseRule(1)
 
-	if err != nil {
-		fmt.Printf("%+v\n", err)
-	} else {
-		printRule(rule, 0)
+	if err == nil {
+		parser.GeneratedRule = rule
 	}
 
-	return nil
+	return err
 }

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/adnanh/hookman/parser"
 	"github.com/adnanh/webhook/hook"
 	"github.com/codegangsta/cli"
 )
@@ -177,9 +178,15 @@ func addHook(c *cli.Context) {
 
 	newHook := hook.Hook{ID: c.Args()[0]}
 
+	if err := setHookProperties(&newHook, c.StringSlice("set")); err != nil {
+		log.Fatalf("error: cannot set property: %s\n", err)
+	}
+
 	hooks = append(hooks, newHook)
 
-	saveHooks()
+	if err := saveHooks(); err != nil {
+		log.Fatalf("error: %s\n", err)
+	}
 }
 
 func deleteHook(c *cli.Context) {
@@ -214,6 +221,94 @@ func deleteHook(c *cli.Context) {
 	deleteHooks(hooksToBeDeleted)
 
 	saveHooks()
+}
+
+func setHookProperties(h *hook.Hook, propertyValuePairs []string) error {
+	for _, propertyValuePair := range propertyValuePairs {
+		splitResult := strings.SplitN(propertyValuePair, "=", 2)
+
+		if len(splitResult) != 2 {
+			log.Fatalln("error: --set must follow property=newvalue format")
+		}
+
+		property, value := strings.ToLower(splitResult[0]), splitResult[1]
+
+		switch {
+		case property == "id":
+			log.Printf(" + setting id to %s\n", value)
+			h.ID = value
+
+		case property == "execute-command":
+			fallthrough
+		case property == "cmd":
+			log.Printf(" + setting execute-command to %s\n", value)
+			h.ExecuteCommand = value
+
+		case property == "trigger-rule":
+			fallthrough
+		case property == "rule":
+			log.Printf(" + setting trigger-rule to %s\n", value)
+
+			p := parser.New(value)
+
+			if error := p.Parse(); error != nil {
+				return error
+			}
+
+			h.TriggerRule = p.GeneratedRule
+		case property == "command-working-directory":
+			fallthrough
+		case property == "cwd":
+			log.Printf(" + setting command-working-directory to %s\n", value)
+			h.CommandWorkingDirectory = value
+
+		case property == "response-message":
+			fallthrough
+		case property == "message":
+			log.Printf(" + setting response-message to %s\n", value)
+			h.ResponseMessage = value
+
+		/*case property == "pass-environment-to-command":
+			fallthrough
+		case property == "env":
+			log.Println(" - removing pass-environment-to-command")
+			h.PassEnvironmentToCommand = nil
+
+		case property == "pass-arguments-to-command":
+			fallthrough
+		case property == "args":
+			log.Println(" - removing pass-arguments-to-command")
+			h.PassArgumentsToCommand = nil
+
+		case property == "parse-parameters-as-json":
+			fallthrough
+		case property == "json-params":
+			log.Println(" - removing parse-parameters-as-json")
+			h.JSONStringParameters = nil*/
+
+		case property == "include-command-output-in-response":
+			fallthrough
+		case property == "include-response":
+			value = strings.ToLower(value)
+
+			if value == "true" {
+				log.Println(" + setting include-command-output-in-response to true")
+				h.CaptureCommandOutput = true
+			} else {
+				if value == "false" {
+					log.Println(" + setting include-command-output-in-response to false")
+					h.CaptureCommandOutput = false
+				} else {
+					return fmt.Errorf("invalid value %s, expected true or false", value)
+				}
+			}
+
+		default:
+			return fmt.Errorf("invalid property name %s", property)
+		}
+	}
+
+	return nil
 }
 
 func unsetHookProperties(h *hook.Hook, properties []string) error {
@@ -330,17 +425,13 @@ func editHook(c *cli.Context) {
 		log.Fatalf("error: cannot remove property: %s\n", err)
 	}
 
+	if err := setHookProperties(h, c.StringSlice("set")); err != nil {
+		log.Fatalf("error: cannot set property: %s\n", err)
+	}
+
 	if err := saveHooks(); err != nil {
 		log.Fatalf("error: %s\n", err)
 	}
-
-	// p := parser.New(strings.Join(c.Args(), " "))
-	//
-	// if error := p.Parse(); error != nil {
-	// 	fmt.Printf("%+v\n", error)
-	// 	return
-	// }
-
 }
 
 func init() {
