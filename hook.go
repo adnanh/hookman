@@ -136,7 +136,17 @@ func argumentsToString(args []hook.Argument) string {
 	argsSlice := make([]string, len(args))
 
 	for idx, arg := range args {
-		argsSlice[idx] = fmt.Sprintf("\"%s.%s\"", arg.Source, arg.Name)
+		lowercasedSource := strings.ToLower(arg.Source)
+		switch {
+		case lowercasedSource == hook.SourceEntireHeaders:
+			fallthrough
+		case lowercasedSource == hook.SourceEntirePayload:
+			fallthrough
+		case lowercasedSource == hook.SourceEntireQuery:
+			argsSlice[idx] = arg.Source
+		default:
+			argsSlice[idx] = fmt.Sprintf("\"%s.%s\"", arg.Source, arg.Name)
+		}
 	}
 
 	return fmt.Sprintf("%s", strings.Join(argsSlice, ", "))

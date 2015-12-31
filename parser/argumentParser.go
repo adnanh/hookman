@@ -77,21 +77,35 @@ func (parser *ArgumentParser) parseArguments() ([]hook.Argument, error) {
 
 			source := parser.Lexer.Tokens[parser.Position].Value
 
-			result := strings.SplitN(source, ".", 2)
+			var argument hook.Argument
 
-			if len(result) != 2 {
-				return nil, parser.Error(fmt.Sprintf(invalidArgumentFormat, "\t"), parser.Position)
+			lowercasedSource := strings.ToLower(source)
+
+			switch {
+			case lowercasedSource == hook.SourceEntireHeaders:
+				fallthrough
+			case lowercasedSource == hook.SourceEntirePayload:
+				fallthrough
+			case lowercasedSource == hook.SourceEntireQuery:
+				argument.Source = lowercasedSource
+			default:
+				result := strings.SplitN(source, ".", 2)
+
+				if len(result) != 2 {
+					return nil, parser.Error(fmt.Sprintf(invalidArgumentFormat, "\t"), parser.Position)
+				}
+				if result[0] != hook.SourceHeader && result[0] != hook.SourcePayload && result[0] != hook.SourceQuery && result[0] != hook.SourceString {
+					return nil, parser.Error(fmt.Sprintf(invalidParameterSource, "\t", strings.Join([]string{hook.SourceHeader, hook.SourcePayload, hook.SourceQuery, hook.SourceString}, ", ")), parser.Position)
+				}
+
+				if result[1] == "" {
+					return nil, parser.Error(fmt.Sprintf(invalidParameterName, "\t"), parser.Position)
+				}
+
+				argument.Source = result[0]
+				argument.Name = result[1]
 			}
 
-			if result[0] != hook.SourceHeader && result[0] != hook.SourcePayload && result[0] != hook.SourceQuery && result[0] != hook.SourceString {
-				return nil, parser.Error(fmt.Sprintf(invalidParameterSource, "\t", strings.Join([]string{hook.SourceHeader, hook.SourcePayload, hook.SourceQuery, hook.SourceString}, ", ")), parser.Position)
-			}
-
-			if result[1] == "" {
-				return nil, parser.Error(fmt.Sprintf(invalidParameterName, "\t"), parser.Position)
-			}
-
-			argument := hook.Argument{Source: result[0], Name: result[1]}
 			arguments = append(arguments, argument)
 
 			expectingArgument = false
